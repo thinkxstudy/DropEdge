@@ -7,7 +7,7 @@ from torch.nn.modules.module import Module
 from torch import nn
 import torch.nn.functional as F
 
-
+'''
 
 class GraphConvolutionBS(Module):
     """
@@ -84,14 +84,16 @@ class GraphConvolutionBS(Module):
         return self.__class__.__name__ + ' (' \
                + str(self.in_features) + ' -> ' \
                + str(self.out_features) + ')'
-    
-class GraphConvolutionSE(Module):
+'''
+
+class GraphConvolutionBS(Module):
     """
-    GCN Layer with Sqeeze-and-Excitation.
+    Modified version of the original GraphConvolutionBS layer.
+    GCN Layer with GCN Layer with BN, Self-loop, Res connection, and Sqeeze-and-Excitation.
     """
 
     def __init__(self, in_features, out_features, activation=lambda x: x, withbn=True, withloop=True, bias=True,
-                excitation_rate):
+                res=False, excitation_rate):
         """
         Initial function.
         :param in_features: the input feature dimension.
@@ -101,11 +103,13 @@ class GraphConvolutionSE(Module):
         :param withloop: using self feature modeling.
         :param bias: enable bias.
         :param excitation_rate: compression rate of excitation-fc layers.
+        :param res: enable res connections.
         """
         super(GraphConvolutionSE, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.sigma = activation
+        self.res = res
         
         # Excitation
         self.efc1 = torch.nn.Linear(out_features[-1], out_features[-1]/excitation_rate)
@@ -160,6 +164,11 @@ class GraphConvolutionSE(Module):
         # BN
         if self.bn is not None:
             output = self.bn(output)
+        # Res
+        if self.res:
+            return self.sigma(output) + input
+        else:
+            return self.sigma(output)
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
