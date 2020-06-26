@@ -107,7 +107,7 @@ class GraphConvolutionSE(Module):
         self.out_features = out_features
         self.sigma = activation
         
-        #Excitation
+        # Excitation
         self.efc1 = torch.nn.Linear(out_features[-1], out_features[-1]/excitation_rate)
         self.efc2 = torch.nn.Linear(out_features[-1]/excitation_rate, out_features[-1])
         
@@ -142,12 +142,13 @@ class GraphConvolutionSE(Module):
 
     def forward(self, input, adj):
         support = torch.mm(input, self.weight)
-        output = torch.spmm(adj, support)
         
         # Squeeze and Excitation
-        output_s = torch.mean(output.view([-1, output.size(-1)]), 0)
+        output_s = torch.mean(support.view([-1, support.size(-1)]), 0)
         output_s = F.relu(self.efc1(output_s))
         output_s = F.sigmoid(self.efc2(output_s))
+        
+        output = torch.spmm(adj, support)
         output = output * output_s
 
         # Self-loop
