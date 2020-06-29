@@ -93,7 +93,7 @@ class GraphConvolutionBS(Module):
     """
 
     def __init__(self, in_features, out_features, activation=lambda x: x, withbn=True, withloop=True, bias=True,
-                res=False, excitation_rate=16):
+                res=False):
         """
         Initial function.
         :param in_features: the input feature dimension.
@@ -112,6 +112,7 @@ class GraphConvolutionBS(Module):
         self.res = res
         
         # Excitation
+        excitation_rate=16
         self.efc1 = torch.nn.Linear(out_features[-1], out_features[-1]/excitation_rate)
         self.efc2 = torch.nn.Linear(out_features[-1]/excitation_rate, out_features[-1])
         
