@@ -111,13 +111,12 @@ class GraphConvolutionBS(Module):
         self.out_features = out_features
         self.sigma = activation
         self.res = res
-        '''        
+        
         # Excitation
-        excitation_rate=16
-        if out_features != 1:
+        excitation_rate = 16
+        if out_features > 16:
             self.efc1 = torch.nn.Linear(out_features, int(out_features/excitation_rate))
             self.efc2 = torch.nn.Linear(int(out_features/excitation_rate), out_features)
-        '''
         
         # Parameter setting.
         self.weight = Parameter(torch.FloatTensor(in_features, out_features))
@@ -150,20 +149,18 @@ class GraphConvolutionBS(Module):
 
     def forward(self, input, adj):
         support = torch.mm(input, self.weight)
-        '''        
+        
         # Squeeze and Excitation
-        if self.out_features != 1:
-            output_s = torch.mean(support.view([-1, support.size(-1)]), 0)
+        if self.out_features > 16:
+            output_s = torch.mean(support, 0)
             output_s = F.relu(self.efc1(output_s))
             output_s = F.sigmoid(self.efc2(output_s))
-        '''
         
         output = torch.spmm(adj, support)
-
-        '''
-        if self.out_features != 1:
+        
+        if self.out_features > 16:
             output = output * output_s
-        '''
+        
 
         # Self-loop
         if self.self_weight is not None:
