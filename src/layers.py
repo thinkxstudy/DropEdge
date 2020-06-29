@@ -105,7 +105,7 @@ class GraphConvolutionBS(Module):
         :param excitation_rate: compression rate of excitation-fc layers.
         :param res: enable res connections.
         """
-        super(GraphConvolutionSE, self).__init__()
+        super(GraphConvolutionBS, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.sigma = activation
