@@ -113,8 +113,8 @@ class GraphConvolutionBS(Module):
         
         # Excitation
         excitation_rate=16
-        self.efc1 = torch.nn.Linear(out_features[-1], out_features[-1]/excitation_rate)
-        self.efc2 = torch.nn.Linear(out_features[-1]/excitation_rate, out_features[-1])
+        self.efc1 = torch.nn.Linear(out_features, out_features/excitation_rate)
+        self.efc2 = torch.nn.Linear(out_features/excitation_rate, out_features)
         
         # Parameter setting.
         self.weight = Parameter(torch.FloatTensor(in_features, out_features))
