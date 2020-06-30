@@ -79,6 +79,7 @@ parser.add_argument("--aggrmethod", default="default",
 parser.add_argument("--task_type", default="full", help="The node classification task type (full and semi). Only valid for cora, citeseer and pubmed dataset.")
 parser.add_argument("--se", default=True, help="Enable the squeeze-and-excitation mechanism.")
 parser.add_argument("--excitation_rate", default=16, help="The excitation rate for sqeeze-and-excitation.")
+parser.add_argument("--secat", default=False, help="Enable the squeeze-and-excitation mechanism for concatenation.")
 
 args = parser.parse_args()
 if args.debug:
@@ -130,7 +131,8 @@ model = GCNModel(nfeat=nfeat,
                  aggrmethod=args.aggrmethod,
                  mixmode=args.mixmode,
                  se=args.se,
-                 excitation_rate=args.excitation_rate)
+                 excitation_rate=args.excitation_rate,
+                 secat=args.secat)
 
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)

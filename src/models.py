@@ -35,7 +35,8 @@ class GCNModel(nn.Module):
                  aggrmethod="add",
                  mixmode=False,
                  se=True,
-                 excitation_rate=16):
+                 excitation_rate=16,
+                 secat=False):
         """
         Initial function.
         :param nfeat: the input feature dimension.
@@ -104,7 +105,8 @@ class GCNModel(nn.Module):
                                  dense=False,
                                  aggrmethod=aggrmethod,
                                  se=se,
-                                 excitation_rate=excitation_rate)
+                                 excitation_rate=excitation_rate,
+                                 secat=secat)
             self.midlayer.append(gcb)
             baseblockinput = gcb.get_outdim()
         # output gc

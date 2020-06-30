@@ -33,7 +33,7 @@ class GraphConvolutionBS(Module):
         self.out_features = out_features
         self.sigma = activation
         self.res = res
-        self.se = se and out_features > excitation_rate;
+        self.se = se and out_features > excitation_rate
         
         # Excitation
         if self.se:
@@ -77,7 +77,7 @@ class GraphConvolutionBS(Module):
         if self.se:
             output_s = torch.mean(support, 0)
             output_s = F.relu(self.efc1(output_s))
-            output_s = F.sigmoid(self.efc2(output_s))
+            output_s = torch.sigmoid(self.efc2(output_s))
             output = output * output_s
         
         # Self-loop
@@ -107,7 +107,8 @@ class GraphBaseBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod="concat", dense=False, se=True, excitation_rate=16):
+                 aggrmethod="concat", dense=False, se=True, excitation_rate=16,
+                 secat=False):
         """
         The base block for constructing DeepGCN model.
         :param in_features: the input feature dimension.
@@ -120,6 +121,7 @@ class GraphBaseBlock(Module):
         :param aggrmethod: the aggregation function for baseblock, can be "concat" and "add". For "resgcn", the default
                            is "add", for others the default is "concat".
         :param dense: enable dense connection
+        :param secat: enable squeeze-and-excitation after concatenation.
         """
         super(GraphBaseBlock, self).__init__()
         self.in_features = in_features
@@ -132,6 +134,7 @@ class GraphBaseBlock(Module):
         self.withbn = withbn
         self.withloop = withloop
         self.se = se
+        self.secat = secat
         self.excitation_rate = excitation_rate
         self.hiddenlayers = nn.ModuleList()
         self.__makehidden()
@@ -148,6 +151,11 @@ class GraphBaseBlock(Module):
             self.out_features = out_features
         else:
             raise NotImplementedError("The aggregation method only support 'concat','add' and 'nores'.")
+        
+        self.secat = self.secat and self.out_features > self.excitation_rate and self.dense
+        if self.secat
+            self.secatfc1 = nn.Linear(self.out_features, int(self.out_features/self.excitation_rate))
+            self.secatfc2 = nn.Linear(int(self.out_features/self.excitation_rate), self.out_features)
 
     def __makehidden(self):
         # for i in xrange(self.nhiddenlayer):
@@ -178,10 +186,17 @@ class GraphBaseBlock(Module):
             denseout = self._doconcat(denseout, x)
             x = gc(x, adj)
             x = F.dropout(x, self.dropout, training=self.training)
-
+        output = None
         if not self.dense:
-            return self._doconcat(x, input)
-        return self._doconcat(x, denseout)
+            output = self._doconcat(x, input)
+        else:
+            output = self._doconcat(x, denseout)
+        if self.secat
+            output_s = torch.mean(output, 0)
+            output_s = F.relu(self.secatfc1(output_s))
+            output_s = torch.sigmoid(self.secatfc2(output_s))
+            output = output * output_s
+        return output
 
     def get_outdim(self):
         return self.out_features
@@ -202,7 +217,8 @@ class MultiLayerGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod=None, dense=None, se=True, excitation_rate=16):
+                 aggrmethod=None, dense=None, se=True, excitation_rate=16,
+                 secat=False):
         """
         The multiple layer GCN block.
         :param in_features: the input feature dimension.
@@ -215,6 +231,7 @@ class MultiLayerGCNBlock(Module):
         :param aggrmethod: not applied.
         :param dense: not applied.
         :param se: enable squeeze-and-excitation.
+        :param secat: not applied.
         """
         super(MultiLayerGCNBlock, self).__init__()
         self.model = GraphBaseBlock(in_features=in_features,
@@ -251,7 +268,8 @@ class ResGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod=None, dense=None, se=True, excitation_rate=16):
+                 aggrmethod=None, dense=None, se=True, excitation_rate=16,
+                 secat=False):
         """
         The multiple layer GCN with residual connection block.
         :param in_features: the input feature dimension.
@@ -264,6 +282,7 @@ class ResGCNBlock(Module):
         :param aggrmethod: not applied.
         :param dense: not applied.
         :param se: enable squeeze-and-excitation.
+        :param secat: not applied.
         """
         super(ResGCNBlock, self).__init__()
         self.model = GraphBaseBlock(in_features=in_features,
@@ -300,7 +319,8 @@ class DenseGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod="concat", dense=True, se=True, excitation_rate=16):
+                 aggrmethod="concat", dense=True, se=True, excitation_rate=16,
+                 secat=False):
         """
         The multiple layer GCN with dense connection block.
         :param in_features: the input feature dimension.
@@ -325,7 +345,8 @@ class DenseGCNBlock(Module):
                                     dense=True,
                                     aggrmethod=aggrmethod,
                                     se=se,
-                                    excitation_rate=excitation_rate)
+                                    excitation_rate=excitation_rate,
+                                    secat=secat)
 
     def forward(self, input, adj):
         return self.model.forward(input, adj)
@@ -349,7 +370,8 @@ class InecptionGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod="concat", dense=False, se=True, excitation_rate=16):
+                 aggrmethod="concat", dense=False, se=True, excitation_rate=16,
+                 secat=False):
         """
         The multiple layer GCN with inception connection block.
         :param in_features: the input feature dimension.
@@ -374,6 +396,7 @@ class InecptionGCNBlock(Module):
         self.withbn = withbn
         self.withloop = withloop
         self.se = se
+        self.secat = secat
         self.excitation_rate = excitation_rate
         self.midlayers = nn.ModuleList()
         self.__makehidden()
@@ -386,6 +409,10 @@ class InecptionGCNBlock(Module):
             self.out_features = out_features
         else:
             raise NotImplementedError("The aggregation method only support 'concat', 'add'.")
+        self.secat = self.secat and self.out_features > self.excitation_rate
+        if self.secat
+            self.secatfc1 = nn.Linear(self.out_features, int(self.out_features/self.excitation_rate))
+            self.secatfc2 = nn.Linear(int(self.out_features/self.excitation_rate), self.out_features)
 
     def __makehidden(self):
         # for j in xrange(self.nhiddenlayer):
@@ -410,7 +437,13 @@ class InecptionGCNBlock(Module):
                 subx = gc(subx, adj)
                 subx = F.dropout(subx, self.dropout, training=self.training)
             x = self._doconcat(x, subx)
-        return x
+        output = x
+        if self.secat
+            output_s = torch.mean(output, 0)
+            output_s = F.relu(self.secatfc1(output_s))
+            output_s = torch.sigmoid(self.secatfc2(output_s))
+            output = output * output_s
+        return output
 
     def get_outdim(self):
         return self.out_features
