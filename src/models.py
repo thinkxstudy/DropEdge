@@ -33,7 +33,9 @@ class GCNModel(nn.Module):
                  withbn=True,
                  withloop=True,
                  aggrmethod="add",
-                 mixmode=False):
+                 mixmode=False,
+                 se=True,
+                 excitation_rate=16):
         """
         Initial function.
         :param nfeat: the input feature dimension.
@@ -68,7 +70,8 @@ class GCNModel(nn.Module):
             raise NotImplementedError("Current baseblock %s is not supported." % (baseblock))
         if inputlayer == "gcn":
             # input gc
-            self.ingc = GraphConvolutionBS(nfeat, nhid, activation, withbn, withloop)
+            self.ingc = GraphConvolutionBS(nfeat, nhid, activation, withbn, withloop,
+                                           se=se, excitation_rate=excitation_rate)
             baseblockinput = nhid
         elif inputlayer == "none":
             self.ingc = lambda x: x
@@ -79,7 +82,8 @@ class GCNModel(nn.Module):
 
         outactivation = lambda x: x
         if outputlayer == "gcn":
-            self.outgc = GraphConvolutionBS(baseblockinput, nclass, outactivation, withbn, withloop)
+            self.outgc = GraphConvolutionBS(baseblockinput, nclass, outactivation, withbn, withloop,
+                                            se=se, excitation_rate=excitation_rate)
         # elif outputlayer ==  "none": #here can not be none
         #    self.outgc = lambda x: x 
         else:
@@ -98,12 +102,15 @@ class GCNModel(nn.Module):
                                  activation=activation,
                                  dropout=dropout,
                                  dense=False,
-                                 aggrmethod=aggrmethod)
+                                 aggrmethod=aggrmethod,
+                                 se=se,
+                                 excitation_rate=excitation_rate)
             self.midlayer.append(gcb)
             baseblockinput = gcb.get_outdim()
         # output gc
         outactivation = lambda x: x  # we donot need nonlinear activation here.
-        self.outgc = GraphConvolutionBS(baseblockinput, nclass, outactivation, withbn, withloop)
+        self.outgc = GraphConvolutionBS(baseblockinput, nclass, outactivation, withbn, withloop,
+                                        se=se, excitation_rate=excitation_rate)
 
         self.reset_parameters()
         if mixmode:
