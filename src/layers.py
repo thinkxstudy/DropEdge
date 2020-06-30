@@ -7,85 +7,6 @@ from torch.nn.modules.module import Module
 from torch import nn
 import torch.nn.functional as F
 
-'''
-
-class GraphConvolutionBS(Module):
-    """
-    GCN Layer with BN, Self-loop and Res connection.
-    """
-
-    def __init__(self, in_features, out_features, activation=lambda x: x, withbn=True, withloop=True, bias=True,
-                 res=False):
-        """
-        Initial function.
-        :param in_features: the input feature dimension.
-        :param out_features: the output feature dimension.
-        :param activation: the activation function.
-        :param withbn: using batch normalization.
-        :param withloop: using self feature modeling.
-        :param bias: enable bias.
-        :param res: enable res connections.
-        """
-        super(GraphConvolutionBS, self).__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.sigma = activation
-        self.res = res
-
-        # Parameter setting.
-        self.weight = Parameter(torch.FloatTensor(in_features, out_features))
-        # Is this the best practice or not?
-        if withloop:
-            self.self_weight = Parameter(torch.FloatTensor(in_features, out_features))
-        else:
-            self.register_parameter("self_weight", None)
-
-        if withbn:
-            self.bn = torch.nn.BatchNorm1d(out_features)
-        else:
-            self.register_parameter("bn", None)
-
-        if bias:
-            self.bias = Parameter(torch.FloatTensor(out_features))
-        else:
-            self.register_parameter('bias', None)
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.weight.size(1))
-        self.weight.data.uniform_(-stdv, stdv)
-        if self.self_weight is not None:
-            stdv = 1. / math.sqrt(self.self_weight.size(1))
-            self.self_weight.data.uniform_(-stdv, stdv)
-        if self.bias is not None:
-            self.bias.data.uniform_(-stdv, stdv)
-
-    def forward(self, input, adj):
-        support = torch.mm(input, self.weight)
-        output = torch.spmm(adj, support)
-
-        # Self-loop
-        if self.self_weight is not None:
-            output = output + torch.mm(input, self.self_weight)
-
-        if self.bias is not None:
-            output = output + self.bias
-        # BN
-        if self.bn is not None:
-            output = self.bn(output)
-        # Res
-        if self.res:
-            return self.sigma(output) + input
-        else:
-            return self.sigma(output)
-
-    def __repr__(self):
-        return self.__class__.__name__ + ' (' \
-               + str(self.in_features) + ' -> ' \
-               + str(self.out_features) + ')'
-'''
-
 class GraphConvolutionBS(Module):
     """
     Modified version of the original GraphConvolutionBS layer.
@@ -93,7 +14,7 @@ class GraphConvolutionBS(Module):
     """
 
     def __init__(self, in_features, out_features, activation=lambda x: x, withbn=True, withloop=True, bias=True,
-                res=False):
+                res=False, se=True, excitation_rate=16):
         """
         Initial function.
         :param in_features: the input feature dimension.
@@ -102,8 +23,9 @@ class GraphConvolutionBS(Module):
         :param withbn: using batch normalization.
         :param withloop: using self feature modeling.
         :param bias: enable bias.
-        :param excitation_rate: compression rate of excitation-fc layers.
         :param res: enable res connections.
+        :param se: enable squeeze-and-excitation.
+        :param excitation_rate: compression rate of excitation-fc layers.
         """
 
         super(GraphConvolutionBS, self).__init__()
@@ -111,10 +33,10 @@ class GraphConvolutionBS(Module):
         self.out_features = out_features
         self.sigma = activation
         self.res = res
+        self.se = se and out_features > excitation_rate;
         
         # Excitation
-        excitation_rate = 16
-        if out_features > 16:
+        if self.se:
             self.efc1 = torch.nn.Linear(out_features, int(out_features/excitation_rate))
             self.efc2 = torch.nn.Linear(int(out_features/excitation_rate), out_features)
         
@@ -149,19 +71,15 @@ class GraphConvolutionBS(Module):
 
     def forward(self, input, adj):
         support = torch.mm(input, self.weight)
+        output = torch.spmm(adj, support)
         
         # Squeeze and Excitation
-        if self.out_features > 16:
+        if self.se:
             output_s = torch.mean(support, 0)
             output_s = F.relu(self.efc1(output_s))
             output_s = F.sigmoid(self.efc2(output_s))
-        
-        output = torch.spmm(adj, support)
-        
-        if self.out_features > 16:
             output = output * output_s
         
-
         # Self-loop
         if self.self_weight is not None:
             output = output + torch.mm(input, self.self_weight)
@@ -189,7 +107,7 @@ class GraphBaseBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod="concat", dense=False):
+                 aggrmethod="concat", dense=False, se=True, excitation_rate=16):
         """
         The base block for constructing DeepGCN model.
         :param in_features: the input feature dimension.
@@ -213,6 +131,8 @@ class GraphBaseBlock(Module):
         self.dropout = dropout
         self.withbn = withbn
         self.withloop = withloop
+        self.se = se
+        self.excitation_rate = excitation_rate
         self.hiddenlayers = nn.ModuleList()
         self.__makehidden()
 
@@ -234,9 +154,10 @@ class GraphBaseBlock(Module):
         for i in range(self.nhiddenlayer):
             if i == 0:
                 layer = GraphConvolutionBS(self.in_features, self.hiddendim, self.activation, self.withbn,
-                                           self.withloop)
+                                           self.withloop, se=self.se, excitation_rate=self.excitation_rate)
             else:
-                layer = GraphConvolutionBS(self.hiddendim, self.hiddendim, self.activation, self.withbn, self.withloop)
+                layer = GraphConvolutionBS(self.hiddendim, self.hiddendim, self.activation, self.withbn,
+                                           self.withloop, se=self.se, excitation_rate=self.excitation_rate)
             self.hiddenlayers.append(layer)
 
     def _doconcat(self, x, subx):
@@ -281,7 +202,7 @@ class MultiLayerGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod=None, dense=None):
+                 aggrmethod=None, dense=None, se=True, excitation_rate=16):
         """
         The multiple layer GCN block.
         :param in_features: the input feature dimension.
@@ -293,6 +214,7 @@ class MultiLayerGCNBlock(Module):
         :param dropout: the dropout ratio.
         :param aggrmethod: not applied.
         :param dense: not applied.
+        :param se: enable squeeze-and-excitation.
         """
         super(MultiLayerGCNBlock, self).__init__()
         self.model = GraphBaseBlock(in_features=in_features,
@@ -303,7 +225,9 @@ class MultiLayerGCNBlock(Module):
                                     activation=activation,
                                     dropout=dropout,
                                     dense=False,
-                                    aggrmethod="nores")
+                                    aggrmethod="nores",
+                                    se=se,
+                                    excitation_rate=excitation_rate)
 
     def forward(self, input, adj):
         return self.model.forward(input, adj)
@@ -327,7 +251,7 @@ class ResGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod=None, dense=None):
+                 aggrmethod=None, dense=None, se=True, excitation_rate=16):
         """
         The multiple layer GCN with residual connection block.
         :param in_features: the input feature dimension.
@@ -339,6 +263,7 @@ class ResGCNBlock(Module):
         :param dropout: the dropout ratio.
         :param aggrmethod: not applied.
         :param dense: not applied.
+        :param se: enable squeeze-and-excitation.
         """
         super(ResGCNBlock, self).__init__()
         self.model = GraphBaseBlock(in_features=in_features,
@@ -349,7 +274,9 @@ class ResGCNBlock(Module):
                                     activation=activation,
                                     dropout=dropout,
                                     dense=False,
-                                    aggrmethod="add")
+                                    aggrmethod="add",
+                                    se=se,
+                                    excitation_rate=excitation_rate)
 
     def forward(self, input, adj):
         return self.model.forward(input, adj)
@@ -373,7 +300,7 @@ class DenseGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod="concat", dense=True):
+                 aggrmethod="concat", dense=True, se=True, excitation_rate=16):
         """
         The multiple layer GCN with dense connection block.
         :param in_features: the input feature dimension.
@@ -385,6 +312,7 @@ class DenseGCNBlock(Module):
         :param dropout: the dropout ratio.
         :param aggrmethod: the aggregation function for the output. For denseblock, default is "concat".
         :param dense: default is True, cannot be changed.
+        :param se: enable squeeze-and-excitation.
         """
         super(DenseGCNBlock, self).__init__()
         self.model = GraphBaseBlock(in_features=in_features,
@@ -395,7 +323,9 @@ class DenseGCNBlock(Module):
                                     activation=activation,
                                     dropout=dropout,
                                     dense=True,
-                                    aggrmethod=aggrmethod)
+                                    aggrmethod=aggrmethod,
+                                    se=se,
+                                    excitation_rate=excitation_rate)
 
     def forward(self, input, adj):
         return self.model.forward(input, adj)
@@ -419,7 +349,7 @@ class InecptionGCNBlock(Module):
 
     def __init__(self, in_features, out_features, nbaselayer,
                  withbn=True, withloop=True, activation=F.relu, dropout=True,
-                 aggrmethod="concat", dense=False):
+                 aggrmethod="concat", dense=False, se=True, excitation_rate=16):
         """
         The multiple layer GCN with inception connection block.
         :param in_features: the input feature dimension.
@@ -443,6 +373,8 @@ class InecptionGCNBlock(Module):
         self.dropout = dropout
         self.withbn = withbn
         self.withloop = withloop
+        self.se = se
+        self.excitation_rate = excitation_rate
         self.midlayers = nn.ModuleList()
         self.__makehidden()
 
@@ -463,10 +395,10 @@ class InecptionGCNBlock(Module):
             for i in range(j + 1):
                 if i == 0:
                     layer = GraphConvolutionBS(self.in_features, self.hiddendim, self.activation, self.withbn,
-                                               self.withloop)
+                                               self.withloop, se=self.se, excitation_rate=self.excitation_rate)
                 else:
                     layer = GraphConvolutionBS(self.hiddendim, self.hiddendim, self.activation, self.withbn,
-                                               self.withloop)
+                                               self.withloop, se=self.se, excitation_rate=self.excitation_rate)
                 reslayer.append(layer)
             self.midlayers.append(reslayer)
 
