@@ -77,6 +77,8 @@ parser.add_argument("--nbaseblocklayer", type=int, default=1,
 parser.add_argument("--aggrmethod", default="default",
                     help="The aggrmethod for the layer aggreation. The options includes add and concat. Only valid in resgcn, densegcn and inecptiongcn")
 parser.add_argument("--task_type", default="full", help="The node classification task type (full and semi). Only valid for cora, citeseer and pubmed dataset.")
+parser.add_argument("--se", default=True, help="Enable the squeeze-and-excitation mechanism.")
+parser.add_argument("--excitation_rate", default=16, help="The excitation rate for sqeeze-and-excitation.")
 
 args = parser.parse_args()
 if args.debug:
@@ -126,7 +128,9 @@ model = GCNModel(nfeat=nfeat,
                  withbn=args.withbn,
                  withloop=args.withloop,
                  aggrmethod=args.aggrmethod,
-                 mixmode=args.mixmode)
+                 mixmode=args.mixmode,
+                 se=args.se,
+                 excitation_rate=args.excitation_rate)
 
 optimizer = optim.Adam(model.parameters(),
                        lr=args.lr, weight_decay=args.weight_decay)
