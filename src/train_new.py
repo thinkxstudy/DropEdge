@@ -77,9 +77,9 @@ parser.add_argument("--nbaseblocklayer", type=int, default=1,
 parser.add_argument("--aggrmethod", default="default",
                     help="The aggrmethod for the layer aggreation. The options includes add and concat. Only valid in resgcn, densegcn and inecptiongcn")
 parser.add_argument("--task_type", default="full", help="The node classification task type (full and semi). Only valid for cora, citeseer and pubmed dataset.")
-parser.add_argument("--se", default=True, help="Enable the squeeze-and-excitation mechanism.")
-parser.add_argument("--excitation_rate", default=16, help="The excitation rate for sqeeze-and-excitation.")
-parser.add_argument("--secat", default=False, help="Enable the squeeze-and-excitation mechanism for concatenation.")
+parser.add_argument("--se", action='store_true', default=False, help="Enable the squeeze-and-excitation mechanism.")
+parser.add_argument("--excitation_rate", type=int, default=16, help="The excitation rate for sqeeze-and-excitation.")
+parser.add_argument("--secat", action='store_true', default=False, help="Enable the squeeze-and-excitation mechanism for concatenation.")
 
 args = parser.parse_args()
 if args.debug:
@@ -264,7 +264,7 @@ for epoch in range(args.epochs):
         if args.mixmode:
             val_adj = val_adj.cuda()
         outputs = train(epoch, train_adj, train_fea, input_idx_train, val_adj, val_fea)
-
+    '''
     if args.debug and epoch % 1 == 0:
         print('Epoch: {:04d}'.format(epoch + 1),
               'loss_train: {:.4f}'.format(outputs[0]),
@@ -275,7 +275,7 @@ for epoch in range(args.epochs):
               's_time: {:.4f}s'.format(sampling_t),
               't_time: {:.4f}s'.format(outputs[5]),
               'v_time: {:.4f}s'.format(outputs[6]))
-    
+    '''
     if args.no_tensorboard is False:
         tb_writer.add_scalars('Loss', {'train': outputs[0], 'val': outputs[2]}, epoch)
         tb_writer.add_scalars('Accuracy', {'train': outputs[1], 'val': outputs[3]}, epoch)

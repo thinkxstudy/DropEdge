@@ -4,12 +4,12 @@ python3 ./src/train_new.py \
     --debug \
     --datapath data// \
     --seed 42 \
-    --dataset citeseer \
-    --type inceptiongcn \
+    --dataset $1 \
+    --type $2 \
     --nhiddenlayer 1 \
-    --nbaseblocklayer 6 \
+    --nbaseblocklayer $3 \
     --hidden 256 \
-    --epoch 400 \
+    --epoch $4 \
     --lr 0.005 \
     --weight_decay 0.0005 \
     --early_stopping 400 \
@@ -17,5 +17,3 @@ python3 ./src/train_new.py \
     --dropout 0.5 \
     --normalization BingGeNormAdj \
     --withloop \
-    --se=False \
-    

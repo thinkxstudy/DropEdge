@@ -153,9 +153,9 @@ class GraphBaseBlock(Module):
             raise NotImplementedError("The aggregation method only support 'concat','add' and 'nores'.")
         
         self.secat = self.secat and self.out_features > self.excitation_rate and self.dense
-        if self.secat
-            self.secatfc1 = nn.Linear(self.out_features, int(self.out_features/self.excitation_rate))
-            self.secatfc2 = nn.Linear(int(self.out_features/self.excitation_rate), self.out_features)
+        if self.secat:
+            self.secatfc1 = torch.nn.Linear(self.out_features, int(self.out_features/self.excitation_rate))
+            self.secatfc2 = torch.nn.Linear(int(self.out_features/self.excitation_rate), self.out_features)
 
     def __makehidden(self):
         # for i in xrange(self.nhiddenlayer):
@@ -191,7 +191,7 @@ class GraphBaseBlock(Module):
             output = self._doconcat(x, input)
         else:
             output = self._doconcat(x, denseout)
-        if self.secat
+        if self.secat:
             output_s = torch.mean(output, 0)
             output_s = F.relu(self.secatfc1(output_s))
             output_s = torch.sigmoid(self.secatfc2(output_s))
@@ -410,9 +410,9 @@ class InecptionGCNBlock(Module):
         else:
             raise NotImplementedError("The aggregation method only support 'concat', 'add'.")
         self.secat = self.secat and self.out_features > self.excitation_rate
-        if self.secat
-            self.secatfc1 = nn.Linear(self.out_features, int(self.out_features/self.excitation_rate))
-            self.secatfc2 = nn.Linear(int(self.out_features/self.excitation_rate), self.out_features)
+        if self.secat:
+            self.secatfc1 = torch.nn.Linear(self.out_features, int(self.out_features/self.excitation_rate))
+            self.secatfc2 = torch.nn.Linear(int(self.out_features/self.excitation_rate), self.out_features)
 
     def __makehidden(self):
         # for j in xrange(self.nhiddenlayer):
@@ -438,7 +438,7 @@ class InecptionGCNBlock(Module):
                 subx = F.dropout(subx, self.dropout, training=self.training)
             x = self._doconcat(x, subx)
         output = x
-        if self.secat
+        if self.secat:
             output_s = torch.mean(output, 0)
             output_s = F.relu(self.secatfc1(output_s))
             output_s = torch.sigmoid(self.secatfc2(output_s))
